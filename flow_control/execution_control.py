@@ -1,24 +1,10 @@
 from datetime import datetime
 from enum import Enum
-from queue import Queue
 from types import FunctionType
 from typing import Any, Callable, Dict, List, Tuple, Union
 from typing_extensions import Self
-from flow_control.interfaces import CallableExecutor
-
-
-
-class Transporter:
-    def __init__(self, data = None) -> None:
-        self._data = data
-    def deliver(self) -> Tuple[Any, None]:
-        return self._data, None
-    def receive_data(self, data):
-        self._data = data
-    def clone(self):
-        pass
-    def clone_for_iterable(self):
-        pass
+from flow_control.controls import DataStore
+from flow_control.output import Broker
 
 
 class Ticket:
@@ -135,50 +121,6 @@ class ExecutionNode:
 
 
     
-class Articulator():
-    def __call__(self, transporter: Transporter) -> Any:
-        '''
-        Receive transporter for execution
-        '''
-        raise NotImplementedError('Please, implement method .__call__()')
-    def _analyze(self, tm: TicketManager):
-        '''
-        Return a ExecutionTreeNode
-        '''
-        raise NotImplementedError('Please, implement method .__analyze()')
-    
-    def _get_executors(self, ticket: Ticket) -> Tuple[Ticket, Any]:
-        '''
-        Return list of Callable Executor or Flow. Use it to get the executors. 
-        '''
-        raise NotImplementedError('Please, implement method .__get_executors()')
-    @property
-    def name(self):
-        return self._name if self._name else type(self).__name__
-    @property
-    def type(self):
-        return type(self).__name__
-    def _proper_name(self, obj: Union[CallableExecutor, FunctionType]) -> str:
-        if hasattr(obj, 'name'): return obj.name
-        if hasattr(obj, '__name__'): return obj.__name__
-        return type(obj).__name__
-    def _set_nodes(self, execs: Callable, tm: Ticket):
-        current_ticket = tm.next()
-        tm.open_child_depth()
-        children_nodes = [TreeNode(
-            self._proper_name(e), 
-            type(e).__name__,
-            tm.next()
-            ) for e in self._callable_executors]
-        tm.close_child_depth()
-        return TreeNode(
-            self.name,
-            self.type,
-            current_ticket,
-            children=children_nodes
-        )
-
-
 
 class ControlStatus(Enum):
     IDLE = 'IDLE'
@@ -224,11 +166,16 @@ class FlowEvent:
     def msgs(self):
         return self._msgs
 
+class FlowBroker(Broker):
+    def get(self) -> FlowEvent:
+        return super().get()
+
+
 
 class ExecutionEvents:
-    def __init__(self, queue: Queue) -> None:
-        assert isinstance(queue, Queue), 'queue is not a Queue instance'
-        self._queue = queue
+    def __init__(self, broker: FlowBroker) -> None:
+        assert isinstance(broker, FlowBroker), 'broker is not a FlowBroker instance'
+        self._broker = broker
         self._on_event_emmit_callback = None
         self._on_start_emmit_callback = None
         self._on_finish_emmit_callback = None
@@ -238,7 +185,8 @@ class ExecutionEvents:
     def emmit_finish(self, execution_family:ExecutionFamily):
         self._global_emmitter('finish', execution_family)
     def _global_emmitter(self, type:str, execution_family: ExecutionFamily):
-        self._queue.put((type, execution_family))
+        flow_event = FlowEvent(type, execution_family)
+        self._broker.put(flow_event)
     def user_loggin(self, msgs: List[str] = []):
         pass
     def on_event_emmit(self, fn: Callable = None):
@@ -297,11 +245,20 @@ class UserLogger:
         self._user_logger = execution_events.user_loggin
     def log(self, msg: str) -> None:
         self._user_logger([msg])
+        
+class FlowPanel:
+    def __init__(self, user_logger: UserLogger, data_store: DataStore) -> None:
+        self._user_logger = user_logger
+        self._data_store = data_store
+    def loger(self):
+        return self._user_logger
+    def data_store(self):
+        return self.data_store
 
 class ExecutionControl:
-    def __init__(self, queue: Queue) -> None:
+    def __init__(self, broker: FlowBroker) -> None:
         self._status = Status()
-        self._events = ExecutionEvents(queue)
+        self._events = ExecutionEvents(broker)
         self._current_execution = CurrentExecution(self._status, self._events)
         self._controls = Controls(self._current_execution)
     @property
@@ -328,4 +285,73 @@ class ExecutionControl:
         return self._events
     def expose_user_logger(self) -> UserLogger:
         return UserLogger(self._current_execution._events)
+
+
+class Transporter:
+    def __init__(self, execution_control: ExecutionControl, data_store: DataStore, data: Any) -> None:
+        self._data = data
+        self._execution_control = execution_control
+        self._data_store = data_store
+    def deliver(self) -> Tuple[Any, FlowPanel]:
+        flow_panel = FlowPanel(self._execution_control.expose_user_logger(), self._data_store)
+        return self._data, flow_panel
+    def receive_data(self, data):
+        self._data = data
+    def clone(self):
+        pass
+    def clone_for_iterable(self):
+        pass
+
+class CallableExecutor():
+    def __call__(self, data: Any, flow_panel: FlowPanel) -> Any:
+        '''
+        '''
+        raise NotImplementedError('Please, implement method .__call__()')
+
+class Articulator():
+    def __call__(self, transporter: Transporter) -> Any:
+        '''
+        Receive transporter for execution
+        '''
+        raise NotImplementedError('Please, implement method .__call__()')
+    def _analyze(self, tm: TicketManager):
+        '''
+        Return a ExecutionTreeNode
+        '''
+        raise NotImplementedError('Please, implement method .__analyze()')
+    
+    def _get_executors(self, ticket: Ticket) -> Tuple[Ticket, Any]:
+        '''
+        Return list of Callable Executor or Flow. Use it to get the executors. 
+        '''
+        raise NotImplementedError('Please, implement method .__get_executors()')
+    @property
+    def name(self):
+        return self._name if self._name else type(self).__name__
+    @property
+    def type(self):
+        return type(self).__name__
+    def _proper_name(self, obj: Union[CallableExecutor, FunctionType]) -> str:
+        if hasattr(obj, 'name'): return obj.name
+        if hasattr(obj, '__name__'): return obj.__name__
+        return type(obj).__name__
+    def _set_nodes(self, execs: Callable, tm: Ticket):
+        current_ticket = tm.next()
+        tm.open_child_depth()
+        def proper_node(e):
+            if hasattr(e, '_analyze'):
+                return e._analyze(tm)
+            return TreeNode(
+                self._proper_name(e), 
+                type(e).__name__,
+                tm.next()
+            )
+        children_nodes = [proper_node(e) for e in execs]
+        tm.close_child_depth()
+        return TreeNode(
+            self.name,
+            self.type,
+            current_ticket,
+            children=children_nodes
+        )
 

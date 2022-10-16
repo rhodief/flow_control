@@ -1,15 +1,11 @@
 from datetime import datetime
-from queue import Queue
-from typing import Any, Callable, List
 import unittest
-import os, sys
-from flow_control.execution_control import ControlStatus, Controls, CurrentExecution, ExecutionEvents, ExecutionFamily, ExecutionNode, Status, Ticket, TicketManager, TreeNode
+from flow_control.execution_control import ControlStatus, Controls, CurrentExecution, ExecutionControl, ExecutionEvents, ExecutionFamily, ExecutionNode, FlowPanel, Status, Ticket, TicketManager, Transporter, TreeNode
 from hypothesis import given, assume
-from hypothesis.strategies import integers, lists, composite, SearchStrategy
+from hypothesis.strategies import integers, lists
 
+from test.utils import broker_instance, random_transporter
 
-class TestTransporter:
-    pass
 
 class TestTicket(unittest.TestCase):
     @given(lists(integers(min_value = 0, max_value = 5)), integers())
@@ -94,8 +90,8 @@ class TestTicketManager(unittest.TestCase):
 
 class TestExecutionEvents(unittest.TestCase):
     def test_check_queue_instance(self):
-        q = Queue()
-        ev = ExecutionEvents(q)
+        b = broker_instance()
+        ev = ExecutionEvents(b)
         self.assertTrue(ev)
     def test_should_fail_on_parameter_other_than_queue(self):
         with self.assertRaises(AssertionError):
@@ -103,8 +99,8 @@ class TestExecutionEvents(unittest.TestCase):
             self.assertTrue(ev)
     
     def test_start_emmition(self):
-        q = Queue()
-        ev = ExecutionEvents(q)
+        b = broker_instance()
+        ev = ExecutionEvents(b)
         tm = TicketManager()
         t1 = tm.next()
         tm.open_child_depth()
@@ -113,13 +109,13 @@ class TestExecutionEvents(unittest.TestCase):
         en2 = ExecutionNode(TreeNode('child', 'Function', t2))
         ef = ExecutionFamily(en1, en2)
         ev.emmit_start(ef)
-        result = q.get()
-        self.assertEqual(result[0], 'start')
-        self.assertTrue(isinstance(result[1], ExecutionFamily))
+        result = b.get()
+        self.assertEqual(result.type, 'start')
+        self.assertTrue(isinstance(result.execution_family, ExecutionFamily))
 
     def test_finish_emmition(self):
-        q = Queue()
-        ev = ExecutionEvents(q)
+        b = broker_instance()
+        ev = ExecutionEvents(b)
         tm = TicketManager()
         t1 = tm.next()
         tm.open_child_depth()
@@ -128,23 +124,23 @@ class TestExecutionEvents(unittest.TestCase):
         en2 = ExecutionNode(TreeNode('child', 'Function', t2))
         ef = ExecutionFamily(en1, en2)
         ev.emmit_finish(ef)
-        result = q.get()
-        self.assertEqual(result[0], 'finish')
-        self.assertTrue(isinstance(result[1], ExecutionFamily))
+        result = b.get()
+        self.assertEqual(result.type, 'finish')
+        self.assertTrue(isinstance(result.execution_family, ExecutionFamily))
 
 
 class TestCurrentExecution(unittest.TestCase):
     def test_current_execution_instance(self):
-        q = Queue()
-        current_execution = CurrentExecution(Status(), ExecutionEvents(q))
+        b = broker_instance()
+        current_execution = CurrentExecution(Status(), ExecutionEvents(b))
         self.assertTrue(current_execution)
     def test_current_execution_should_fail_check_deps(self):
         with self.assertRaises(AssertionError):
             current_execution = CurrentExecution('', '')
             self.assertTrue(current_execution)
     def test_add_method_index(self):
-        q = Queue()
-        ev = ExecutionEvents(q)
+        b = broker_instance()
+        ev = ExecutionEvents(b)
         tm = TicketManager()
         t1 = tm.next()
         tm.open_child_depth()
@@ -157,8 +153,8 @@ class TestCurrentExecution(unittest.TestCase):
         result = current_execution._current_execution.get(ef.get_tid())
         self.assertTrue(result)
     def test_add_method_emmition(self):
-        q = Queue()
-        ev = ExecutionEvents(q)
+        b = broker_instance()
+        ev = ExecutionEvents(b)
         tm = TicketManager()
         t1 = tm.next()
         tm.open_child_depth()
@@ -168,12 +164,12 @@ class TestCurrentExecution(unittest.TestCase):
         ef = ExecutionFamily(en1, en2)
         current_execution = CurrentExecution(Status(), ev)
         current_execution.add(ef)
-        result = q.get()
-        self.assertEqual(result[0], 'start')
-        self.assertTrue(isinstance(result[1], ExecutionFamily))
+        result = b.get()
+        self.assertEqual(result.type, 'start')
+        self.assertTrue(isinstance(result.execution_family, ExecutionFamily))
     
     def test_remove_method_index(self):
-        q = Queue()
+        q = broker_instance()
         ev = ExecutionEvents(q)
         tm = TicketManager()
         t1 = tm.next()
@@ -188,7 +184,7 @@ class TestCurrentExecution(unittest.TestCase):
         result = current_execution._current_execution.get(ef.get_tid())
         self.assertIsNone(result)
     def test_remove_method_emmition(self):
-        q = Queue()
+        q = broker_instance()
         ev = ExecutionEvents(q)
         tm = TicketManager()
         t1 = tm.next()
@@ -202,14 +198,14 @@ class TestCurrentExecution(unittest.TestCase):
         current_execution.remove('0.0')
         result = q.get()
         result = q.get()
-        self.assertEqual(result[0], 'finish')
-        self.assertTrue(isinstance(result[1], ExecutionFamily))
+        self.assertEqual(result.type, 'finish')
+        self.assertTrue(isinstance(result.execution_family, ExecutionFamily))
 
 
 
 class TestControl(unittest.TestCase):
     def setUp(self) -> None:
-        q = Queue()
+        q = broker_instance()
         ev = ExecutionEvents(q)
         self.currentExecution = (CurrentExecution(Status(), ev), q)
     def test_exec_can_i_execute(self):
@@ -266,9 +262,26 @@ class TestControl(unittest.TestCase):
         controls.exec_finish(t2.ticket.tid)
         ev = q.get()
         ev = q.get()
-        ev_type, ec_fam = ev
+        ev_type = ev.type
+        ec_fam = ev.execution_family
         self.assertEqual(ev_type, 'finish')
         self.assertTrue(isinstance(ec_fam.get_current()._end, datetime))
+        
+class TestExecutionControl:
+    pass
+        
+class TestTransporter(unittest.TestCase):
+    @given(random_transporter())
+    def test_deliver_method(self, transporter: Transporter):
+        value = transporter._data
+        deliver = transporter.deliver()
+        data, flow_panel = deliver
+        self.assertEqual(data, value)
+        self.assertTrue(isinstance(flow_panel, FlowPanel))
+    @given(random_transporter(), integers())
+    def test_deliber_receive_data(self, transporter: Transporter, data: int):
+        transporter.receive_data(data)
+        self.assertEqual(transporter._data, data)
 
 if __name__ == '__main__':
     unittest.main()

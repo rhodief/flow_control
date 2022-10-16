@@ -1,2 +1,2 @@
-docker build -t rhodie/simple-python .
-docker run -it --name flow_control -v $(pwd):/usr/src/app rhodie/simple-python
+docker build -t rhodie/flow_control_image .
+docker run -it --name flow_control -v $(pwd):/usr/src/app rhodie/flow_control_image

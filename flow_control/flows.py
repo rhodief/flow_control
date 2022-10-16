@@ -3,9 +3,8 @@ from types import FunctionType
 from typing import Any, Iterable, Tuple, Union
 from typing_extensions import Self
 from flow_control.controls import DataStore
-from flow_control.execution_control import Articulator, Ticket, TicketManager, Transporter, TreeNode, ExecutionControl
-from flow_control.interfaces import CallableExecutor
-from flow_control.output import SuperLogger
+from flow_control.execution_control import Articulator, ControlStatus, FlowBroker, Ticket, TicketManager, Transporter, TreeNode, ExecutionControl, CallableExecutor
+from flow_control.output import PrinterWorker, SuperPrinter
 
 
 class Sequence(Articulator):
@@ -19,11 +18,11 @@ class Sequence(Articulator):
         self._node: TreeNode = None
     def __call__(self, transporter: Transporter) -> Any:
         for call_exec in self._callable_executors:
-            transporter.receive_data(call_exec(*transporter.deliver())) 
+            transporter.receive_data(call_exec(*transporter.deliver()))
         return transporter
     def _analyze(self, tm: TicketManager):
         self._node = self._set_nodes(self._callable_executors, tm)
-        return self._node.to_dict()
+        return self._node
         
 class Map(Articulator):
     pass
@@ -38,7 +37,7 @@ class ExecutionQueue(Articulator):
         '''
         Add a task to the queue
         '''
-    def analyze(self, ticket_manager: TicketManager):
+    def _analyze(self, ticket_manager: TicketManager):
         '''
         Check the execution tree and retrieve the execution Tree
         '''
@@ -48,28 +47,33 @@ class ExecutionQueue(Articulator):
         '''
 
 class Flow(Articulator):
-    def __init__(self, initial_data: Any = None, data_store: DataStore = None, super_logger: SuperLogger = None, queue: Queue = False) -> None:
+    def __init__(self, initial_data: Any = None, data_store: DataStore = None, super_printer: SuperPrinter = None, broker: FlowBroker = None) -> None:
         if data_store:
             assert isinstance(data_store, DataStore), 'data_store must be a DataStore() instance'
-        if super_logger:
-            assert isinstance(super_logger, SuperLogger), 'super_logger must be a SuperLogger instance'
-        if queue:
-            assert isinstance(queue, Queue), 'queue must be a Queue() instance'
-        self._inicial_data = initial_data
+        if super_printer:
+            assert isinstance(super_printer, SuperPrinter), 'super_printer must be a SuperPrinter instance'
+        if broker:
+            assert isinstance(broker, FlowBroker), 'broker must be a FlowBroker() instance'
+        self._initial_data = initial_data
         self._data_store = data_store if data_store else DataStore()
-        self._super_logger = super_logger
-        self._q = queue
-        if not self._q:
-            self._q = Queue()
-        if not self._super_logger:
-            self._super_logger = SuperLogger(self._q)
-        self._execution_control = ExecutionControl(self._q)
+        self._super_printer = super_printer
+        self._broker = broker
+        if not self._broker:
+            self._broker = FlowBroker(Queue())
+        if not self._super_printer:
+            printer_worker = PrinterWorker()
+            self._super_printer = SuperPrinter(self._broker, printer_worker)
+        self._execution_control = ExecutionControl(self._broker)
+        self._transporter = Transporter(self._execution_control, self._data_store, self._initial_data)
+        self._ticket_manager = TicketManager()
         self._execution_queue = []
-        self._transporter = Transporter()
-    def sequence(self, exec = Iterable[CallableExecutor]) -> Self:
+        self._name = 'My Flow'
+        
+    def sequence(self, execs = Iterable[CallableExecutor]) -> Self:
         '''
         It runs a List of Callable to be executed in sequence.
         '''
+        self._execution_queue.append(Sequence(execs))
         return self
     def map(self, exec = Iterable[CallableExecutor]) -> Self:
         '''
@@ -87,9 +91,23 @@ class Flow(Articulator):
     def join_flow(self, flow:Iterable[Self]) -> Self:
         return self
     def result(self) -> Any:
-        return 'Resultado'
-    def analyze(self, ticket: Ticket):
-        pass
+        #self._broker.put(self._analyze())
+        self._set_flow_status(ControlStatus.RUNNING)
+        self._super_printer.watch()
+        self._run()
+        self._super_printer.block()
+        self._set_flow_status(ControlStatus.IDLE)
+        return self._transporter._data
+    def _analyze(self, ticket_manager: TicketManager = None):
+        tm = ticket_manager if ticket_manager else self._ticket_manager
+        self._node = self._set_nodes(self._execution_queue, tm)
+        return self._node
     def __call__(self, transporter: Transporter) -> Any:
         pass
-    
+    def _set_flow_status(self, status: ControlStatus):
+        self._execution_control.controls._current._current_status.set_status(status)
+    def _run(self):
+        transporter = self._transporter
+        for executor in self._execution_queue:
+             transporter = executor(transporter)
+        self._transporter = transporter
