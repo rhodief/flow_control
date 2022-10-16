@@ -114,8 +114,7 @@ class ExecutionNode:
             'start': self._start,
             'end': self._end,
             'n_iter': self._n_iter,
-            'total_iter': self._total_iter,
-            'children': [c.to_dict() for c in self._children]
+            'total_iter': self._total_iter
         }
 
 
@@ -152,8 +151,8 @@ class ExecutionFamily:
     
 
 class FlowEvent:
-    def __init__(self, type: str, execution_family: ExecutionFamily, msgs: List[str] = []) -> None:
-        self._type = type
+    def __init__(self, flow_type: str, execution_family: ExecutionFamily, msgs: List[str] = []) -> None:
+        self._type = flow_type
         self._execution_family = execution_family
         self._msgs = msgs
     @property
@@ -165,6 +164,12 @@ class FlowEvent:
     @property
     def msgs(self):
         return self._msgs
+    def to_dict(self):
+        return {
+            'type': self.type,
+            'parent': self._execution_family.get_parent().to_dict(),
+            'current': self._execution_family.get_current().to_dict()
+        }
 
 class FlowBroker(Broker):
     def get(self) -> FlowEvent:
@@ -184,8 +189,8 @@ class ExecutionEvents:
         self._global_emmitter('start', execution_family)
     def emmit_finish(self, execution_family:ExecutionFamily):
         self._global_emmitter('finish', execution_family)
-    def _global_emmitter(self, type:str, execution_family: ExecutionFamily):
-        flow_event = FlowEvent(type, execution_family)
+    def _global_emmitter(self, ev_type:str, execution_family: ExecutionFamily):
+        flow_event = FlowEvent(ev_type, execution_family).to_dict()
         self._broker.put(flow_event)
     def user_loggin(self, msgs: List[str] = []):
         pass

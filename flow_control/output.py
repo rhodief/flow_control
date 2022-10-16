@@ -19,7 +19,7 @@ class Broker:
 class PrinterWorker():
     def __call__(self, broker) -> Any:
         while True:
-            item = broker.get()
+            item  = broker.get()
             print(f'Mensagem: ', item)
             broker.done()
             

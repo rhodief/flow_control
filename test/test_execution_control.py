@@ -110,8 +110,8 @@ class TestExecutionEvents(unittest.TestCase):
         ef = ExecutionFamily(en1, en2)
         ev.emmit_start(ef)
         result = b.get()
-        self.assertEqual(result.type, 'start')
-        self.assertTrue(isinstance(result.execution_family, ExecutionFamily))
+        self.assertEqual(result['type'], 'start')
+        self.assertTrue(isinstance(result['parent'], dict))
 
     def test_finish_emmition(self):
         b = broker_instance()
@@ -125,8 +125,8 @@ class TestExecutionEvents(unittest.TestCase):
         ef = ExecutionFamily(en1, en2)
         ev.emmit_finish(ef)
         result = b.get()
-        self.assertEqual(result.type, 'finish')
-        self.assertTrue(isinstance(result.execution_family, ExecutionFamily))
+        self.assertEqual(result['type'], 'finish')
+        self.assertTrue(isinstance(result['parent'], dict))
 
 
 class TestCurrentExecution(unittest.TestCase):
@@ -165,8 +165,8 @@ class TestCurrentExecution(unittest.TestCase):
         current_execution = CurrentExecution(Status(), ev)
         current_execution.add(ef)
         result = b.get()
-        self.assertEqual(result.type, 'start')
-        self.assertTrue(isinstance(result.execution_family, ExecutionFamily))
+        self.assertEqual(result['type'], 'start')
+        self.assertTrue(isinstance(result['current'], dict))
     
     def test_remove_method_index(self):
         q = broker_instance()
@@ -198,8 +198,8 @@ class TestCurrentExecution(unittest.TestCase):
         current_execution.remove('0.0')
         result = q.get()
         result = q.get()
-        self.assertEqual(result.type, 'finish')
-        self.assertTrue(isinstance(result.execution_family, ExecutionFamily))
+        self.assertEqual(result['type'], 'finish')
+        self.assertTrue(isinstance(result['current'], dict))
 
 
 
@@ -262,10 +262,10 @@ class TestControl(unittest.TestCase):
         controls.exec_finish(t2.ticket.tid)
         ev = q.get()
         ev = q.get()
-        ev_type = ev.type
-        ec_fam = ev.execution_family
+        ev_type = ev['type']
+        ec_fam = ev['current']
         self.assertEqual(ev_type, 'finish')
-        self.assertTrue(isinstance(ec_fam.get_current()._end, datetime))
+        self.assertTrue(isinstance(ec_fam['end'], datetime))
         
 class TestExecutionControl:
     pass

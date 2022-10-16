@@ -17,8 +17,13 @@ class Sequence(Articulator):
         self._name = name
         self._node: TreeNode = None
     def __call__(self, transporter: Transporter) -> Any:
-        for call_exec in self._callable_executors:
-            transporter.receive_data(call_exec(*transporter.deliver()))
+        controls = transporter._execution_control.controls
+        for index, call_exec in enumerate(self._callable_executors):
+            if controls.can_I_execute():
+                current_child: TreeNode = self._node.children[index]
+                controls.exec_start(self._node, current_child)
+                transporter.receive_data(call_exec(*transporter.deliver()))
+                controls.exec_finish(current_child.ticket.tid)
         return transporter
     def _analyze(self, tm: TicketManager):
         self._node = self._set_nodes(self._callable_executors, tm)
@@ -91,7 +96,7 @@ class Flow(Articulator):
     def join_flow(self, flow:Iterable[Self]) -> Self:
         return self
     def result(self) -> Any:
-        #self._broker.put(self._analyze())
+        self._broker.put(self._analyze().to_dict())
         self._set_flow_status(ControlStatus.RUNNING)
         self._super_printer.watch()
         self._run()

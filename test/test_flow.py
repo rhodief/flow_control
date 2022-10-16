@@ -1,6 +1,6 @@
 from typing import Any, Callable, List
 import unittest
-from flow_control.execution_control import TicketManager, Transporter, CallableExecutor
+from flow_control.execution_control import ControlStatus, TicketManager, Transporter, CallableExecutor
 from hypothesis import given, assume
 from hypothesis.strategies import integers, lists, composite, SearchStrategy, text
 from flow_control.flows import Flow, Sequence
@@ -70,6 +70,9 @@ class TestSequence(unittest.TestCase):
         fn2 = FunctionGenerator('class', '*', 7, True).generate()
         fn3 = FunctionGenerator('fn', '-', 3, True).generate()
         sequence = Sequence(executors=[fn1, fn2, fn3])
+        tm = TicketManager()
+        sequence._analyze(tm)
+        transporter._execution_control.controls._current._current_status.set_status(ControlStatus.RUNNING)
         result = sequence(transporter)
         expected_result = [(d + 4) * 7 - 3 for d in data]
         self.assertEqual(result._data, expected_result)
