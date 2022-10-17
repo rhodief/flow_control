@@ -1,10 +1,11 @@
 from datetime import datetime
 from enum import Enum
 from types import FunctionType
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Tuple, Union
 from typing_extensions import Self
 from flow_control.controls import DataStore
 from flow_control.output import Broker
+from copy import deepcopy
 
 
 class Ticket:
@@ -293,10 +294,12 @@ class ExecutionControl:
 
 
 class Transporter:
-    def __init__(self, execution_control: ExecutionControl, data_store: DataStore, data: Any) -> None:
+    def __init__(self, execution_control: ExecutionControl, data_store: DataStore, data: Any, n_iter: int = None, n_total: int  = None) -> None:
         self._data = data
         self._execution_control = execution_control
         self._data_store = data_store
+        self._n_iter = n_iter
+        self._n_total = n_total
     def deliver(self) -> Tuple[Any, FlowPanel]:
         flow_panel = FlowPanel(self._execution_control.expose_user_logger(), self._data_store)
         return self._data, flow_panel
@@ -305,7 +308,15 @@ class Transporter:
     def clone(self):
         pass
     def clone_for_iterable(self):
-        pass
+        assert isinstance(self._data, Iterable), 'transporter._data must be a iterable'
+        size = None
+        if hasattr(self._data, '__len__'):
+            size = len(self._data)
+        return [
+            Transporter(self._execution_control, self._data_store, deepcopy(data), i, size) 
+            for i, data in enumerate(self._data)]
+            
+        
 
 class CallableExecutor():
     def __call__(self, data: Any, flow_panel: FlowPanel) -> Any:

@@ -278,10 +278,30 @@ class TestTransporter(unittest.TestCase):
         data, flow_panel = deliver
         self.assertEqual(data, value)
         self.assertTrue(isinstance(flow_panel, FlowPanel))
+    
     @given(random_transporter(), integers())
     def test_deliber_receive_data(self, transporter: Transporter, data: int):
         transporter.receive_data(data)
         self.assertEqual(transporter._data, data)
+    
+    @given(random_transporter(), integers())
+    def test_clone_for_iterables_method_should_fail_non_iterable_data(self, transporter: Transporter, data:int):
+        with self.assertRaises(AssertionError):
+            transporter._data = data
+            transporter.clone_for_iterable()
+    
+    @given(random_transporter())
+    def test_clone_for_iterable_method_should_return_iterables(self, transporter: Transporter):
+        data = transporter._data
+        clones_for_iterable = transporter.clone_for_iterable()
+        exepected_len = len(data)
+        self.assertEqual(exepected_len, len(clones_for_iterable))
+        if exepected_len > 0:
+            t1 = clones_for_iterable[0]
+            self.assertEqual(t1._n_total, exepected_len)
+            self.assertEqual(t1._n_iter, 0)
+        
+        
 
 if __name__ == '__main__':
     unittest.main()

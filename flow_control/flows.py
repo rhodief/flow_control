@@ -30,7 +30,17 @@ class Sequence(Articulator):
         return self._node
         
 class Map(Articulator):
-    pass
+    def __init__(self, executors = Tuple[Union[CallableExecutor, FunctionType]], name = '') -> None:
+        assert isinstance(executors, Iterable), 'executors param must be a iterable'
+        assert all([hasattr(el, '__call__') or isinstance(el, FunctionType) for el in executors]), 'Executors must be a CallableExecutor subclass or FunctionType'
+        self._callable_executors = executors
+        self._node: TreeNode = None
+        self._name = name
+    def __call__(self, transporter: Transporter) -> Any:
+        pass
+    def _analyze(self, tm: TicketManager):
+        self._node = self._set_nodes(self._callable_executors, tm)
+        return self._node
 
 class Parallel(Articulator):
     pass

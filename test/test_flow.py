@@ -3,7 +3,7 @@ import unittest
 from flow_control.execution_control import ControlStatus, TicketManager, Transporter, CallableExecutor
 from hypothesis import given, assume
 from hypothesis.strategies import integers, lists, composite, SearchStrategy, text
-from flow_control.flows import Flow, Sequence
+from flow_control.flows import Flow, Map, Sequence
 import random
 
 
@@ -86,7 +86,54 @@ class TestSequence(unittest.TestCase):
         node = sequence._analyze(tm).to_dict()
         expected = {'name': 'Sequence', 'type': 'Sequence', 'index': '0', 'children': [{'name': 'ClsGen', 'type': 'ClsGen', 'index': '0.0', 'children': []}, {'name': 'ClsGen', 'type': 'ClsGen', 'index': '0.1', 'children': []}, {'name': 'fn_gen', 'type': 'function', 'index': '0.2', 'children': []}]}
         self.assertAlmostEqual(node, expected)
- 
+
+
+class TestMap(unittest.TestCase):
+    def test_map_class_instance(self):
+        def fn_test(x):
+            pass
+        class TestCls(CallableExecutor):
+            pass
+        self.assertTrue(Map(executors=[lambda x: x + 1]), 'Fail on lambda function')
+        self.assertTrue(Map((fn_test,)), 'Fail on function')
+        self.assertTrue(Map([TestCls]), 'Fail on class')
+    
+    def test_should_fail_on_not_allowed_executors_types(self):
+        with self.assertRaises(AssertionError):
+            sequence = Map('a')
+            sequence = Map(21)
+            sequence = Map(('a', 1))
+    
+    
+    '''
+    @given(random_transporter())
+    def test_map_call(self, transporter: Transporter):
+        data = transporter._data
+        fn1 = FunctionGenerator('random', '+', 4, False).generate()
+        fn2 = FunctionGenerator('class', '*', 7, False).generate()
+        fn3 = FunctionGenerator('fn', '-', 3, False).generate()
+        map_executor = Map(executors=[fn1, fn2, fn3])
+        tm = TicketManager()
+        map_executor._analyze(tm)
+        transporter._execution_control.controls._current._current_status.set_status(ControlStatus.RUNNING)
+        result = map_executor(transporter)
+        expected_result = [(d + 4) * 7 - 3 for d in data]
+        self.assertEqual(result._data, expected_result)
+
+    
+        
+    def test_analyze_method(self):
+        fn1 = FunctionGenerator('class', '+', 4, True).generate()
+        fn2 = FunctionGenerator('class', '*', 7, True).generate()
+        fn3 = FunctionGenerator('fn', '-', 3, True).generate()
+        sequence = Sequence(executors=[fn1, fn2, fn3])
+        tm = TicketManager()
+        node = sequence._analyze(tm).to_dict()
+        expected = {'name': 'Sequence', 'type': 'Sequence', 'index': '0', 'children': [{'name': 'ClsGen', 'type': 'ClsGen', 'index': '0.0', 'children': []}, {'name': 'ClsGen', 'type': 'ClsGen', 'index': '0.1', 'children': []}, {'name': 'fn_gen', 'type': 'function', 'index': '0.2', 'children': []}]}
+        self.assertAlmostEqual(node, expected)
+
+    '''
+    
 
 class TestFlow(unittest.TestCase):
     '''
