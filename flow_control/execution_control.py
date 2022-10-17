@@ -315,8 +315,11 @@ class Transporter:
         return [
             Transporter(self._execution_control, self._data_store, deepcopy(data), i, size) 
             for i, data in enumerate(self._data)]
-            
-        
+    def recompose(self, transporters: List[Self]):
+        self._data = [trans._data for trans in transporters]
+    def clone(self, n_branches: int):
+        assert n_branches >= 0, 'n_branches must be greater than or equal 0'
+        return [Transporter(self._execution_control, self._data_store, deepcopy(self._data)) for b in range(n_branches)]
 
 class CallableExecutor():
     def __call__(self, data: Any, flow_panel: FlowPanel) -> Any:

@@ -3,7 +3,7 @@ import unittest
 from flow_control.execution_control import ControlStatus, TicketManager, Transporter, CallableExecutor
 from hypothesis import given, assume
 from hypothesis.strategies import integers, lists, composite, SearchStrategy, text
-from flow_control.flows import Flow, Map, Sequence
+from flow_control.flows import Flow, Map, Parallel, Sequence
 import random
 
 
@@ -26,7 +26,7 @@ class FunctionGenerator:
         }
         return ops[self._operation_type]
     def _function_content(self, data):
-        if iter:
+        if self._iter:
             return [self._operation(d) for d in data]
         return self._operation(data)
     def generate(self):
@@ -103,15 +103,12 @@ class TestMap(unittest.TestCase):
             sequence = Map('a')
             sequence = Map(21)
             sequence = Map(('a', 1))
-    
-    
-    '''
     @given(random_transporter())
     def test_map_call(self, transporter: Transporter):
         data = transporter._data
-        fn1 = FunctionGenerator('random', '+', 4, False).generate()
-        fn2 = FunctionGenerator('class', '*', 7, False).generate()
-        fn3 = FunctionGenerator('fn', '-', 3, False).generate()
+        fn1 = FunctionGenerator('random', '+', 4).generate()
+        fn2 = FunctionGenerator('class', '*', 7).generate()
+        fn3 = FunctionGenerator('fn', '-', 3).generate()
         map_executor = Map(executors=[fn1, fn2, fn3])
         tm = TicketManager()
         map_executor._analyze(tm)
@@ -120,19 +117,66 @@ class TestMap(unittest.TestCase):
         expected_result = [(d + 4) * 7 - 3 for d in data]
         self.assertEqual(result._data, expected_result)
 
-    
-        
     def test_analyze_method(self):
         fn1 = FunctionGenerator('class', '+', 4, True).generate()
         fn2 = FunctionGenerator('class', '*', 7, True).generate()
         fn3 = FunctionGenerator('fn', '-', 3, True).generate()
-        sequence = Sequence(executors=[fn1, fn2, fn3])
+        sequence = Map(executors=[fn1, fn2, fn3])
         tm = TicketManager()
         node = sequence._analyze(tm).to_dict()
-        expected = {'name': 'Sequence', 'type': 'Sequence', 'index': '0', 'children': [{'name': 'ClsGen', 'type': 'ClsGen', 'index': '0.0', 'children': []}, {'name': 'ClsGen', 'type': 'ClsGen', 'index': '0.1', 'children': []}, {'name': 'fn_gen', 'type': 'function', 'index': '0.2', 'children': []}]}
+        expected = {'name': 'Map', 'type': 'Map', 'index': '0', 'children': [{'name': 'ClsGen', 'type': 'ClsGen', 'index': '0.0', 'children': []}, {'name': 'ClsGen', 'type': 'ClsGen', 'index': '0.1', 'children': []}, {'name': 'fn_gen', 'type': 'function', 'index': '0.2', 'children': []}]}
         self.assertAlmostEqual(node, expected)
 
-    '''
+class TestParallel(unittest.TestCase):
+    def test_parallel_class_should_fail_on_not_allowed_executors_types(self):
+        with self.assertRaises(AssertionError):
+            def fn_test(x):
+                pass
+            class TestCls(CallableExecutor):
+                pass
+            Parallel(flows=[lambda x: x + 1])
+            Parallel(flows=(fn_test,))
+            Parallel(flows=[TestCls])
+    
+    def test_parallel_analyze_method(self):
+        f1 = Flow().sequence([lambda x: x + 1, lambda y: y-5]).map([lambda x: x *2])
+        f2 = Flow().sequence([lambda x: x + 1]).map([lambda x: x *2, lambda y: y-5])
+        tm = TicketManager()
+        an = Parallel([f1, f2])._analyze(tm)
+        expected_value = {'name': 'Parallel', 'type': 'Parallel', 'index': '0', 'children': [{'name': 'My Flow', 'type': 'Flow', 'index': '0.0', 'children': [{'name': 'Sequence', 'type': 'Sequence', 'index': '0.0.0', 'children': [{'name': '<lambda>', 'type': 'function', 'index': '0.0.0.0', 'children': []}, {'name': '<lambda>', 'type': 'function', 'index': '0.0.0.1', 'children': []}]}, {'name': 'Map', 'type': 'Map', 'index': '0.0.1', 'children': [{'name': '<lambda>', 'type': 'function', 'index': '0.0.1.0', 'children': []}]}]}, {'name': 'My Flow', 'type': 'Flow', 'index': '0.1', 'children': [{'name': 'Sequence', 'type': 'Sequence', 'index': '0.1.0', 'children': [{'name': '<lambda>', 'type': 'function', 'index': '0.1.0.0', 'children': []}]}, {'name': 'Map', 'type': 'Map', 'index': '0.1.1', 'children': [{'name': '<lambda>', 'type': 'function', 'index': '0.1.1.0', 'children': []}, {'name': '<lambda>', 'type': 'function', 'index': '0.1.1.1', 'children': []}]}]}]}
+        self.assertEqual(an.to_dict(), expected_value)
+    
+    @given(lists(integers()), integers(), integers(), integers())
+    def test_parallel_call_method(self, list_integers, int1, int2, int3):
+        fn1 = FunctionGenerator('random', '+', int1, True).generate()
+        fn2 = FunctionGenerator('class', '*', int2, True).generate()
+        fn3 = FunctionGenerator('fn', '-', int3, True).generate()
+        fn4 = FunctionGenerator('class', '*', int2).generate()
+        fn5 = FunctionGenerator('fn', '+', int3).generate()
+        fn6 = FunctionGenerator('random', '+', int1).generate()
+        f1 = Flow() \
+                .sequence([fn1]) \
+                .map(execs=[fn4])
+        f2 = Flow() \
+                .sequence([fn2]) \
+                .map(execs=[fn5]) 
+        main_flow = Flow(list_integers) \
+                .sequence([fn3]) \
+                .map(execs=[fn6]) \
+                .parallel([f1, f2])
+        
+        expected_value_main_flow = [(d - int3) + int1 for d in list_integers]
+        expected_value_f1 = [(e + int1) * int2 for e in expected_value_main_flow]
+        expected_value_f2 = [(e * int2) + int3 for e in expected_value_main_flow]
+        total_expected = [expected_value_f1, expected_value_f2]
+        self.assertEqual(main_flow.result(), total_expected)
+    
+    
+
+    
+                    
+        
+        
     
 
 class TestFlow(unittest.TestCase):
@@ -168,11 +212,16 @@ class TestFlow(unittest.TestCase):
         fn1 = FunctionGenerator('random', '+', int1, True).generate()
         fn2 = FunctionGenerator('class', '*', int2, True).generate()
         fn3 = FunctionGenerator('fn', '-', int3, True).generate()
+        fn4 = FunctionGenerator('class', '*', int2).generate()
+        fn5 = FunctionGenerator('fn', '+', int3).generate()
         result = Flow(list_integers) \
                     .sequence([fn1, fn2, fn3]) \
+                    .map(execs=[fn4, fn5]) \
                     .result()
-        expected_result = [(i + int1) * int2 - int3 for i in list_integers]
+        expected_result = [((i + int1) * int2 - int3) * int2 + int3 for i in list_integers]
         self.assertEqual(result, expected_result)
+
+    
    
         
 

@@ -300,8 +300,24 @@ class TestTransporter(unittest.TestCase):
             t1 = clones_for_iterable[0]
             self.assertEqual(t1._n_total, exepected_len)
             self.assertEqual(t1._n_iter, 0)
-        
-        
+    
+    @given(random_transporter())
+    def test_recompose_method_should_join_iterables(self, transporter: Transporter):        
+        data = transporter._data
+        clones_for_iterable = transporter.clone_for_iterable()
+        transporter.recompose(clones_for_iterable)
+        self.assertEqual(transporter._data, data)
+    
+    @given(random_transporter(), integers(min_value = 0, max_value = 5))
+    def test_clone_method_should_return_iterables(self, transporter: Transporter, n_clones: int):
+        clones = transporter.clone(n_clones)
+        self.assertEqual(n_clones, len(clones))
+        if n_clones > 0:
+            t1 = clones[0]
+            self.assertEqual(t1._data, transporter._data)
+            
+
+    
 
 if __name__ == '__main__':
     unittest.main()
