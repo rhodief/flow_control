@@ -45,9 +45,11 @@ class Map(Articulator):
             if controls.can_I_execute():
                 for index, call_exec in enumerate(task_executors):
                     current_child: TreeNode = self._node.children[index]
-                    controls.exec_start(self._node, current_child, task_transporter._n_iter, task_transporter._n_total)
+                    n_iter = task_transporter._n_iter
+                    n_total = task_transporter._n_total
+                    controls.exec_start(self._node, current_child, n_iter , n_total)
                     task_transporter.receive_data(call_exec(*task_transporter.deliver()))
-                    controls.exec_finish(current_child.ticket.tid)
+                    controls.exec_finish(current_child.ticket.tid, n_iter)
             return task_transporter
         result_transporter = FlowThreads(parallel_task, transporter_clones, self._callable_executors, n_workers=self._max_workers).run()
         transporter.recompose(result_transporter)
@@ -56,22 +58,6 @@ class Map(Articulator):
         self._node = self._set_nodes(self._callable_executors, tm)
         return self._node
 
-
-class ExecutionQueue(Articulator):
-    def __init__(self) -> None:
-        self._queue = []
-    def push(self):
-        '''
-        Add a task to the queue
-        '''
-    def _analyze(self, ticket_manager: TicketManager):
-        '''
-        Check the execution tree and retrieve the execution Tree
-        '''
-    def __call__(self, transporter: Transporter) -> Any:
-        '''
-        Start the execution queue
-        '''
 
 class Flow(Articulator):
     def __init__(self, initial_data: Any = None, data_store: DataStore = None, super_printer: SuperPrinter = None, broker: FlowBroker = None) -> None:

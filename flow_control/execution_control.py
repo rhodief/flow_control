@@ -193,7 +193,7 @@ class ExecutionEvents:
     def _global_emmitter(self, ev_type:str, execution_family: ExecutionFamily):
         flow_event = FlowEvent(ev_type, execution_family).to_dict()
         self._broker.put(flow_event)
-    def user_loggin(self, msgs: List[str] = []):
+    def user_loggin(self, msgs: str):
         pass
     def on_event_emmit(self, fn: Callable = None):
         pass
@@ -212,15 +212,19 @@ class CurrentExecution:
         self._current_status = status
         self._events = events
         self._current_execution: Dict[str, ExecutionFamily] = {}
+        self._ITER_SEPARATOR = '-'
     def add(self, execution_family: ExecutionFamily):
         self._current_execution[execution_family.get_tid()] = execution_family
         self._events.emmit_start(execution_family)
-    def remove(self, tid: str):
-        if self._current_execution[tid]:
+    def remove(self, tid: str, n_iter: int = None):
+        td = tid
+        if n_iter is not None:
+            td = f'{td}{self._ITER_SEPARATOR}{n_iter}'
+        if self._current_execution.get(td, False):
             exection = self._current_execution[tid]
             exection.get_current().set_end()
             self._events.emmit_finish(exection)
-            del self._current_execution[tid]
+            del self._current_execution[td]
     def can_i_execute(self):
         status = self._current_status.get_status()
         return status == status.RUNNING
@@ -233,13 +237,13 @@ class Controls:
     def exec_start(self, parent_node: TreeNode, current_node: TreeNode, n_iter = None, total = None):
         if not self.can_I_execute(): return
         parent_execution_node = ExecutionNode(parent_node)
-        current_execution_node = ExecutionNode(current_node)
+        current_execution_node = ExecutionNode(current_node, n_iter=n_iter, n_total=total)
         current_execution_node.set_start()
         self._current.add(ExecutionFamily(parent_execution_node, current_execution_node))
         return True
-    def exec_finish(self, tid: str):
+    def exec_finish(self, tid: str, n_iter:int = None):
         if not self.can_I_execute(): return
-        self._current.remove(tid)
+        self._current.remove(tid, n_iter)
     def can_I_execute(self) -> bool:
         '''
         Check the execution status
@@ -250,7 +254,7 @@ class UserLogger:
     def __init__(self, execution_events: ExecutionEvents) -> None:
         self._user_logger = execution_events.user_loggin
     def log(self, msg: str) -> None:
-        self._user_logger([msg])
+        self._user_logger(msg)
         
 class FlowPanel:
     def __init__(self, user_logger: UserLogger, data_store: DataStore) -> None:

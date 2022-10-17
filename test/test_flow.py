@@ -172,19 +172,10 @@ class TestParallel(unittest.TestCase):
         self.assertEqual(main_flow.result(), total_expected)
     
     
-
-    
-                    
-        
-        
-    
-
 class TestFlow(unittest.TestCase):
     '''
     Test flow Class
     '''
-    def setUp(self) -> None:
-        pass
     @given(text())
     def test_flow_get_initial_data(self, text):
         '''
@@ -222,6 +213,8 @@ class TestFlow(unittest.TestCase):
         self.assertEqual(result, expected_result)
 
     
+
+ 
    
         
 
