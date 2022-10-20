@@ -18,6 +18,25 @@ class Broker:
     def block(self):
         return self._queue.join()
 
+class FlowDesign:
+    def __init__(self) -> None:
+        self._design = {}
+    def __call__(self, event: Dict) -> Any:
+        self._build(event)
+        return self._design
+    def _build(self, event: Dict):
+        if event.get('name'):
+            name = event.get('name')
+            ntype = event.get('type')
+            nindex = event.get('index')
+            self._design['header'] = {
+                "name": name,
+                "type": ntype,
+                "index": nindex
+            }
+
+
+
     
 class PrinterWorker():
     def __call__(self, broker) -> Any:
