@@ -94,6 +94,10 @@ class Flow(Articulator):
         '''
         self._execution_queue.append(Map(execs))
         return self
+    def map_process(self):
+        '''
+        Mapping using process. 
+        '''
     def reduce(self) -> Self:
         return self
     def merge(self) -> Self:
