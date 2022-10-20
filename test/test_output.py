@@ -51,7 +51,55 @@ class TestSuperPrinterWorker(unittest.TestCase):
                 "name": "My Flow",
                 "type": "Flow",
                 "index": "0"
-            }
+            },
+            "flows": [
+                {
+                    "type": 'Sequence',
+                    "name": "Sequence",
+                    "index": "0.0",
+                    "status": "S",
+                    "executors": [
+                        {
+                            "name": "somar_cinco",
+                            "type": "function",
+                            "index": "0.0.0",
+                            "status": "S"
+                        },
+                        {
+                            "name": "Multiplica",
+                            "type": "Multiplica",
+                            "index": "0.0.1",
+                            "status": "S"
+                        }
+                    ]
+                },
+                {
+                    "name": "Map",
+                    "type": "Map",
+                    "index": "0.1",
+                    "status": "S",
+                    "executors": [
+                        {
+                            "name": "Multiplica",
+                            "type": "Multiplica",
+                            "index": "0.1.0",
+                            "status": "S"
+                        },
+                        {
+                            "name": "Multiplica",
+                            "type": "Multiplica",
+                            "index": "0.1.1",
+                            "status": "S"
+                        },
+                        {
+                            "name": "Multiplica",
+                            "type": "Multiplica",
+                            "index": "0.1.2",
+                            "status": "S"
+                        }
+                    ]
+                }
+            ]
         }
         flow_design = FlowDesign()
         last_design = {}

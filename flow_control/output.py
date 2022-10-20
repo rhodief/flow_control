@@ -1,5 +1,5 @@
 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 import threading
 from queue import Queue
 import curses
@@ -23,6 +23,7 @@ class FlowDesign:
         self._design = {}
     def __call__(self, event: Dict) -> Any:
         self._build(event)
+        print(self._design)
         return self._design
     def _build(self, event: Dict):
         if event.get('name'):
@@ -34,7 +35,50 @@ class FlowDesign:
                 "type": ntype,
                 "index": nindex
             }
+            self._design['flows'] = self._build_flows(event.get('children'))
+        elif event.get('type'):
+            ntype = event.get('type')
+            parent = event.get('parent')
+            current = event.get('current')
+            node = self._get_by_index(self._design['flows'], current['index'])
+            if parent['type'] == 'Sequence':
+                if ntype == 'start':
+                    node['status'] = 'R'
+                    node['start'] = current['start']
+                if ntype == 'finish':
+                    node['status'] = 'OK'
+                    node['end'] = current['end']
 
+
+    def _build_flows(self, node_list: List[Dict]):
+        r = []
+        for node in node_list:
+            chld = []
+            if 'children' in node:
+                chld = self._build_flows(node['children'])
+            e = {
+                "type": node['type'],
+                "name": node['name'],
+                "index": node['index'],
+                "status": "S"
+            }
+            if len(chld) > 0:
+                e['executors'] = chld
+            r.append(e)
+        return r
+    def _get_by_index(self, my_list, index:str):
+        for item in my_list:
+            if item['index'] == index:
+                return item
+            if 'executors' in item:
+                i = self._get_by_index(item['executors'], index)
+                if i: return i
+
+        
+            
+            
+    
+    
 
 
     
