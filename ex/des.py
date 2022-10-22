@@ -4,6 +4,7 @@ from curses.textpad import rectangle
 import threading
 import time
 from typing import Dict
+import datetime
 
 
 class TerminalDraw:
@@ -163,7 +164,6 @@ class TerminalDraw:
                 self.echo(f'Time : <{duration}>')
                 c = '█░'
                 self.echo(''.join([c for i in range(80)]))
-
             self.backward_ident()
         else:
             info = duration
@@ -395,9 +395,10 @@ def main():
             }
         ]
     }
+    design4 = {'header': {'name': 'My Flow', 'type': 'Flow', 'index': '0'}, 'flows': [{'type': 'Sequence', 'name': 'Sequence', 'index': '0.0', 'status': 'OK', 'executors': [{'type': 'function', 'name': 'somar_cinco', 'index': '0.0.0', 'status': 'OK', 'start': datetime.datetime(2022, 10, 22, 15, 16, 16, 915523), 'end': datetime.datetime(2022, 10, 22, 15, 16, 16, 915562)}, {'type': 'Multiplica', 'name': 'Multiplica', 'index': '0.0.1', 'status': 'OK', 'start': datetime.datetime(2022, 10, 22, 15, 16, 16, 915582), 'end': datetime.datetime(2022, 10, 22, 15, 16, 20, 918829)}]}, {'type': 'Map', 'name': 'Map', 'index': '0.1', 'status': 'OK', 'executors': [{'type': 'Multiplica', 'name': 'Multiplica', 'index': '0.1.0', 'status': 'OK', 'total_bar': 6, 'iter_bar': [0, 5, 2, 1, 3, 4]}, {'type': 'Multiplica', 'name': 'Multiplica', 'index': '0.1.1', 'status': 'OK', 'total_bar': 6, 'iter_bar': [0, 1, 5, 3, 4, 2]}, {'type': 'Multiplica', 'name': 'Multiplica', 'index': '0.1.2', 'status': 'OK', 'total_bar': 6, 'iter_bar': [0, 1, 4, 2, 5, 3]}], 'start': datetime.datetime(2022, 10, 22, 15, 16, 28, 929051), 'end': datetime.datetime(2022, 10, 22, 15, 16, 32, 932518), 'status_bar': (18, 18)}, {'type': 'Parallel', 'name': 'Parallel', 'index': '0.2', 'status': 'S', 'start': None, 'end': None, 'executors': [{'type': 'Flow', 'name': 'My Flow', 'index': '0.2.0', 'status': 'OK', 'start': None, 'end': None, 'executors': [{'type': 'Sequence', 'name': 'Sequence', 'index': '0.2.0.0', 'status': 'OK', 'executors': [{'type': 'function', 'name': 'somar_cinco', 'index': '0.2.0.0.0', 'status': 'OK', 'start': datetime.datetime(2022, 10, 22, 15, 16, 32, 933387), 'end': datetime.datetime(2022, 10, 22, 15, 16, 32, 933419)}, {'type': 'Multiplica', 'name': 'Multiplica', 'index': '0.2.0.0.1', 'status': 'OK', 'start': datetime.datetime(2022, 10, 22, 15, 16, 32, 933438), 'end': datetime.datetime(2022, 10, 22, 15, 16, 36, 934844)}]}]}, {'type': 'Flow', 'name': 'My Flow', 'index': '0.2.1', 'status': 'OK', 'start': None, 'end': None, 'executors': [{'type': 'Map', 'name': 'Map', 'index': '0.2.1.0', 'status': 'OK', 'executors': [{'type': 'Multiplica', 'name': 'Multiplica', 'index': '0.2.1.0.0', 'status': 'OK', 'total_bar': 6, 'iter_bar': [0, 2, 1, 3, 5, 4]}, {'type': 'Multiplica', 'name': 'Multiplica', 'index': '0.2.1.0.1', 'status': 'OK', 'total_bar': 6, 'iter_bar': [2, 0, 1, 3, 4, 5]}, {'type': 'Multiplica', 'name': 'Multiplica', 'index': '0.2.1.0.2', 'status': 'OK', 'total_bar': 6, 'iter_bar': [0, 2, 1, 4, 3, 5]}], 'start': datetime.datetime(2022, 10, 22, 15, 16, 40, 943542), 'end': datetime.datetime(2022, 10, 22, 15, 16, 44, 947028), 'status_bar': (18, 18)}]}]}, {'type': 'Sequence', 'name': 'Sequence', 'index': '0.3', 'status': 'OK', 'executors': [{'type': 'function', 'name': '<lambda>', 'index': '0.3.0', 'status': 'OK', 'start': datetime.datetime(2022, 10, 22, 15, 16, 44, 948026), 'end': datetime.datetime(2022, 10, 22, 15, 16, 44, 948055)}]}]}
     t = TerminalDraw()
     def worker(t: TerminalDraw):
-        for d in [design, design2, design3]:
+        for d in [design, design2, design3, design4]:
             time.sleep(5)
             t.draw(d)
     th = threading.Thread(target=worker, args=(t,), daemon=True)

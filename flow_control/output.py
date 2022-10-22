@@ -1,4 +1,5 @@
 
+from platform import node
 from typing import Any, Dict, List, Tuple
 import threading
 from queue import Queue
@@ -20,27 +21,29 @@ class Broker:
 
 class FlowDesign:
     def __init__(self) -> None:
+        self._main_dict = {}
         self._design = {}
     def __call__(self, event: Dict) -> Any:
-        self._build(event)
-        print(self._design)
-        return self._design
-    def _build(self, event: Dict):
+        self._build_main_dict(event)
+        d = self._build_design()
+        return d
+    def _build_main_dict(self, event: Dict):
         if event.get('name'):
             name = event.get('name')
             ntype = event.get('type')
             nindex = event.get('index')
-            self._design['header'] = {
+            self._main_dict['header'] = {
                 "name": name,
                 "type": ntype,
                 "index": nindex
             }
-            self._design['flows'] = self._build_flows(event.get('children'))
+            self._main_dict['flows'] = self._build_flows(event.get('children'))
         elif event.get('type'):
             ntype = event.get('type')
             parent = event.get('parent')
             current = event.get('current')
-            node = self._get_by_index(self._design['flows'], current['index'])
+            node = self._get_by_index(self._main_dict['flows'], current['index'])
+            parent_node = self._get_by_index(self._main_dict['flows'], parent['index'])
             if parent['type'] == 'Sequence':
                 if ntype == 'start':
                     node['status'] = 'R'
@@ -48,8 +51,97 @@ class FlowDesign:
                 if ntype == 'finish':
                     node['status'] = 'OK'
                     node['end'] = current['end']
-
-
+                    len_parent = len(parent_node['executors'])
+                    last_index = int(node['index'].split('.')[-1])
+                    if len_parent == last_index + 1:
+                        parent_node['status'] = 'OK'                        
+            elif parent['type'] == 'Map':
+                if ntype == 'start':
+                    if 'status' in parent_node and parent_node['status'] != 'R':
+                        parent_node['status'] = 'R'
+                        parent_node['start'] = current['start']
+                    node['status'] = 'R'
+                if ntype == 'finish':
+                    parent_node['end'] = current['end']
+                    node['total_bar'] = current.get('total_iter')
+                    if 'iter_bar' not in node:
+                        node['iter_bar'] = []    
+                    node['iter_bar'].append(current.get('n_iter'))
+                    if len(node['iter_bar']) == node['total_bar']:
+                        node['status'] = 'OK'
+                        is_all_ok = [exec_nodes['status'] == 'OK' for exec_nodes in parent_node['executors']]
+                        if is_all_ok:
+                            parent_node['status'] = 'OK'
+                        
+    def _build_design(self):
+        main = {**self._main_dict}
+        flows = self._build_design_flows(main['flows'])
+        main['flows'] = flows
+        return main
+    def _build_design_flows(self, list_flow: List[Dict]):
+        nodes = []
+        for l in list_flow:
+            ntype = l.get('type')
+            n = l
+            '''
+            if ntype == 'Sequence':
+                #status = l.get('status') if not self._check_chl_all_ok(n['executors']) else 'OK'
+                n =  {
+                    "type": ntype,
+                    "name": l['name'],
+                    "index": l['index'],
+                    "status": status,
+                    "start": l.get('start', None),
+                    "end": l.get('end', None),
+                    "executors": self._check_executors_status(l['executors'], status)
+                }
+                if ntype == 'Map':
+                status = l.get('status', None) if not l.get('end') else 'OK'
+                n =  {
+                    "type": ntype,
+                    "name": l['name'],
+                    "index": l['index'],
+                    "status": status,
+                    "start": l.get('start', None),
+                    "end": l.get('end', None),
+                    "total_bar": self._build_total_bar(l['executors']),
+                    "executors": self._check_executors_status(l['executors'], status)
+                }
+            '''
+            if ntype == 'Map':
+                n = {**l}
+                n['status_bar'] = self._build_status_bar(l['executors'])
+            
+            
+            elif ntype in ('Parallel', 'Flow'):
+                status = l.get('status') if not self._check_chl_all_ok(l['executors']) else 'OK'
+                n =  {
+                    "type": ntype,
+                    "name": l['name'],
+                    "index": l['index'],
+                    "status": status,
+                    "start": l.get('start', None),
+                    "end": l.get('end', None),
+                    "executors": self._build_design_flows(l['executors'])
+                }
+            nodes.append(n)
+        return nodes
+    def _build_status_bar(self, executors: List[Dict]):
+        total_iter = 0
+        n_iter = 0
+        for e in executors:
+            if e.get('total_bar'):
+                total_iter = e.get('total_bar') * len(executors)
+            n_iter+= len(e.get('iter_bar', []))
+        ## normalize values
+        return n_iter, total_iter
+    def _check_executors_status(self, executors: List[Dict], status: str):
+        if status == 'OK':
+            for e in executors:
+                e['status'] = 'OK'
+        return executors
+    def _check_chl_all_ok(self, executors: List[Dict]):
+        return all([e.get('status') == 'OK' for e in executors])
     def _build_flows(self, node_list: List[Dict]):
         r = []
         for node in node_list:
@@ -74,40 +166,7 @@ class FlowDesign:
                 i = self._get_by_index(item['executors'], index)
                 if i: return i
 
-        
-            
-            
-    
-    
-
-
-    
-class PrinterWorker():
-    def __call__(self, broker) -> Any:
-        while True:
-            item  = broker.get()
-            print(f'Mensagem: ', item)
-            broker.done()
-    def subscribe(self):
-        '''
-        PrinterWorker will execute a function post defined
-        '''
-        
-            
-class SuperPrinter():
-    '''
-    This is responsable to expose the application logs.
-    '''
-    def __init__(self, broker: Broker, exposingWorker: PrinterWorker) -> None:
-        self._broker = broker
-        self._bd = {}
-        self._thread = threading.Thread(target=exposingWorker, args=(self._broker,), daemon=True)        
-    def watch(self):
-        self._thread.start()
-    def block(self):
-        self._broker.block()
-
-
+       
 class TerminalDraw:
     def __init__(self, design = {}) -> None:
         self._designs = design
@@ -122,7 +181,7 @@ class TerminalDraw:
         self._ident = [2]
         self.line_space = 2
         self.ident_space = 2
-        self._boxed_types = ['Sequence', 'Map', 'Parallel']
+        self._boxed_types = ['Sequence', 'Map', 'Parallel', 'Flow']
         self._status_color = {
             'R': 1,
             'OK': 3,
@@ -250,6 +309,7 @@ class TerminalDraw:
         mtype = node.get('type')
         name = node.get('name')
         status = node['status']
+        #if status == 'S': return
         color_status = self._status_color.get(status, 2)
         index = node.get('index')
         duration = node.get('duration')
@@ -262,9 +322,19 @@ class TerminalDraw:
             for executor in executors:
                 self.draw_flow_node(executor, mtype)
             if mtype == 'Map' and status == 'R':
-                self.echo(f'Time : <{duration}>')
-                c = '█░'
-                self.echo(''.join([c for i in range(80)]))
+                ok_num, total_num = node.get('status_bar', (None, None))
+                #print(ok_num, total_num)
+                ok_item = '█'
+                remain_item = '░'
+                #self.echo(f'Time : <{duration}>')
+                if total_num <=0: return
+                factor = ok_num/total_num
+                total_bar = 50
+                ok_bar = [ok_item for _ in range(int(factor * total_bar))]
+                remain_bar = [remain_item for _ in range(total_bar - len(ok_bar))]
+                percent = factor * 100
+                bar = ''.join([*ok_bar, *remain_bar])
+                self.echo(f'{bar} {ok_num}/{total_num} ({percent:.2f})%')
 
             self.backward_ident()
         else:
@@ -279,4 +349,42 @@ class TerminalDraw:
                 self.backward_ident()
 
     
+             
+
+    
+class PrinterWorker():
+    def __init__(self) -> None:
+        self._draw = FlowDesign()
+    def __call__(self, broker, terminal: TerminalDraw) -> Any:
+        while True:
+            event  = broker.get()
+            design = self._draw(event)
+            #print(design)
+            terminal.draw(design)
+            broker.done()
+    def subscribe(self):
+        '''
+        PrinterWorker will execute a function post defined
+        '''
+        
             
+class SuperPrinter():
+    '''
+    This is responsable to expose the application logs.
+    '''
+    def __init__(self, broker: Broker, exposingWorker: PrinterWorker) -> None:
+        self._broker = broker
+        self._bd = {}
+        self._terminal_draw = TerminalDraw()
+        def w_terminal(terminal_draw: TerminalDraw):
+            wrapper(terminal_draw)
+        self._thread = threading.Thread(target=exposingWorker, args=(self._broker, self._terminal_draw), daemon=True)
+        self._thread_terminal = threading.Thread(target=w_terminal, args=(self._terminal_draw,), daemon=False)        
+    def watch(self):
+        self._thread_terminal.start()
+        self._thread.start()
+    def block(self):
+        self._broker.block()
+
+
+

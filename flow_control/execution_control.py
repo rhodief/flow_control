@@ -104,7 +104,7 @@ class ExecutionNode:
     def set_end(self):
         self._end = datetime.now()
     def get_tid(self):
-        if self._n_iter: return f'{self._ticket.tid}{self._ITER_SEPARATOR}{self._n_iter}'
+        if self._n_iter is not None: return f'{self._ticket.tid}{self._ITER_SEPARATOR}{self._n_iter}'
         return self._ticket.tid
     
     def to_dict(self):
@@ -221,7 +221,7 @@ class CurrentExecution:
         if n_iter is not None:
             td = f'{td}{self._ITER_SEPARATOR}{n_iter}'
         if self._current_execution.get(td, False):
-            exection = self._current_execution[tid]
+            exection = self._current_execution[td]
             exection.get_current().set_end()
             self._events.emmit_finish(exection)
             del self._current_execution[td]

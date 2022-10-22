@@ -147,12 +147,10 @@ class Parallel(Articulator):
         self._node = self._set_nodes(self._flows, tm)
         return self._node
     def __call__(self, transporter: Transporter) -> Any:
-        print('estou aqui')
         clones = transporter.clone(len(self._flows))
         branches = zip(self._flows, clones)
         def parallel_task(_branches: Tuple[Flow, Transporter], _):
             _flow, _transporter = _branches
-            print(_flow, _transporter)
             return _flow(_transporter)
         result_transporter = FlowThreads(parallel_task, branches, n_workers=self._max_workers).run()
         transporter.recompose(result_transporter)
