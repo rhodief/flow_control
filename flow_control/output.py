@@ -344,8 +344,8 @@ class TerminalDraw:
             self.echo(f'{index}: {name} - ({info})', color_status, True, False, True)
             if status == 'R' and parent_type == 'Sequence':
                 self.forward_ident()
-                self.echo(f'Time : <{duration}>')
-                self.echo(f'Ulogger: <{logs}>')
+                #self.echo(f'Time : <{duration}>')
+                #self.echo(f'Ulogger: <{logs}>')
                 self.backward_ident()
 
     
